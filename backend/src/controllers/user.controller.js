@@ -1,46 +1,70 @@
-import User from "../models/user.model.js";
+import User from '../models/user.model.js'
 
-export const authCallback = async (req, res, next) => {
+// Clerk auth callback
+export const authCallback = async (req, res) => {
   try {
-    const { id } = req.body;
-    // check if user exits
-    const user = await User.findOne({ clerkId: id });
-    // signup
+    const { clerkId } = req.body
+
+    if (!clerkId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Clerk ID is required'
+      })
+    }
+
+    // Find or create user
+    let user = await User.findOne({ clerkId })
+
     if (!user) {
-      await User.create({
-        clerkId: id,
-        apiKeys: [],
+      user = await User.create({
+        clerkId,
         usage: [
-          { type: "email", allowedLimit: 100, usedLimit: 0 },
-          { type: "sms", allowedLimit: 100, usedLimit: 0 },
-          { type: "push_notification", allowedLimit: 100, usedLimit: 0 },
-        ],
-        templates: [],
-      });
+          { type: 'email', allowedLimit: 100, usedLimit: 0 },
+          { type: 'sms', allowedLimit: 50, usedLimit: 0 },
+          { type: 'push_notification', allowedLimit: 100, usedLimit: 0 }
+        ]
+      })
     }
-    res.status(200).json({ success: true, message: "Signed Up successfully" });
-  } catch (error) {
-    console.log("Error in auth callback", error);
-    next(error);
-  }
-};
 
-export const getUserProfile = async (req, res, next) => {
-  try {
-    const userId = req.auth.userId;
-    const user = await User.findById({ clerkId: userId });
-    if (!user) {
-      return res
-        .status(404)
-        .json({ success: false, message: "User not found" });
-    }
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      data: user,
-      message: "User profile fetched successfully",
-    });
+      message: 'User authenticated',
+      data: user
+    })
   } catch (error) {
-    console.log("Error in getting user profile", error);
-    next(error);
+    console.error('Auth callback error:', error)
+    return res.status(500).json({
+      success: false,
+      message: 'Authentication failed'
+    })
   }
-};
+}
+
+// Get user profile
+export const getUserProfile = async (req, res) => {
+  try {
+    const userId = req.user._id
+
+    const user = await User.findById(userId)
+      .populate('apiKeys')
+      .populate('templates')
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      })
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: user
+    })
+  } catch (error) {
+    console.error('Get user profile error:', error)
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to get user profile'
+    })
+  }
+}

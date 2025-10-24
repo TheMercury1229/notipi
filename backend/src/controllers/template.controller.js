@@ -1,179 +1,251 @@
-import { generateSlug } from "../utils/generateSlug.js";
-import Template from "../models/template.model.js";
-import {
+import Template from '../models/template.model.js'
+import User from '../models/user.model.js'
+import { generateSlug } from '../utils/generateSlug.js'
+import { 
   isUserOwnerOfTemplate,
-  isUserOwnerOfTemplateOrTemplateIsPublic,
-} from "../utils/checkIsUserOwner.js";
+  isUserOwnerOfTemplateOrTemplateIsPublic 
+} from '../utils/checkIsUserOwner.js'
 
-export const createTemplate = async (req, res, next) => {
+// Create template
+export const createTemplate = async (req, res) => {
   try {
-    const { name, content, description, isPublic } = req.body;
-    const userId = req.auth.userId;
-    let slug = generateSlug();
-    const templateExists = await Template.findOne({ slug });
-    if (templateExists) {
-      slug = slug + Date.now().toString(36);
+    const { name, content, description, isPublic } = req.body
+    const userId = req.user._id
+
+    if (!name || !content) {
+      return res.status(400).json({
+        success: false,
+        message: 'Name and content are required'
+      })
     }
-    const newTemplate = new Template({
+
+    // Generate slug
+    const slug = generateSlug()
+
+    // Create template
+    const template = await Template.create({
       name,
       content,
       description,
-      isPublic,
       slug,
       owner: userId,
-    });
-    const savedTemplate = await newTemplate.save();
-    if (savedTemplate) {
-      res.status(201).json({
-        success: true,
-        data: savedTemplate,
-        message: "Template created successfully",
-      });
-    }
-  } catch (error) {
-    console.error("Error creating template:", error);
-    next(error);
-  }
-};
-export const fetchAllTemplates = async (req, res, next) => {
-  try {
-    const templates = await Template.find({ owner: req.auth.userId });
-    res.status(200).json({
+      isPublic: isPublic || false
+    })
+
+    // Add to user's templates
+    await User.findByIdAndUpdate(userId, {
+      $push: { templates: template._id }
+    })
+
+    return res.status(201).json({
       success: true,
-      data: templates,
-      message: "Templates fetched successfully",
-    });
+      message: 'Template created successfully',
+      data: template
+    })
   } catch (error) {
-    console.error("Error fetching templates:", error);
-    next(error);
+    console.error('Create template error:', error)
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to create template'
+    })
   }
-};
-export const fetchTemplateById = async (req, res, next) => {
+}
+
+// Fetch all templates for user
+export const fetchAllTemplates = async (req, res) => {
   try {
-    const { id } = req.params;
-    const template = await Template.findById(id);
+    const userId = req.user._id
+    const templates = await Template.find({ owner: userId }).select('-__v')
+
+    return res.status(200).json({
+      success: true,
+      data: templates
+    })
+  } catch (error) {
+    console.error('Fetch templates error:', error)
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch templates'
+    })
+  }
+}
+
+// Fetch all public templates
+export const fetchPublicTemplates = async (req, res) => {
+  try {
+    const templates = await Template.find({ isPublic: true }).select('-__v')
+
+    return res.status(200).json({
+      success: true,
+      data: templates
+    })
+  } catch (error) {
+    console.error('Fetch public templates error:', error)
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch public templates'
+    })
+  }
+}
+
+// Fetch template by ID
+export const fetchTemplateById = async (req, res) => {
+  try {
+    const { id } = req.params
+    const userId = req.user._id
+
+    const template = await Template.findById(id)
+
     if (!template) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Template not found" });
+      return res.status(404).json({
+        success: false,
+        message: 'Template not found'
+      })
     }
-    const showTemplate = await isUserOwnerOfTemplateOrTemplateIsPublic(
-      req.auth.userId,
-      template
-    );
-    if (!showTemplate) {
+
+    // Check access
+    if (!isUserOwnerOfTemplateOrTemplateIsPublic(userId.toString(), template)) {
       return res.status(403).json({
         success: false,
-        message: "Unauthorized to access this template",
-      });
+        message: 'Access denied'
+      })
     }
-    res.status(200).json({
+
+    return res.status(200).json({
       success: true,
-      data: template,
-      message: "Template fetched successfully",
-    });
+      data: template
+    })
   } catch (error) {
-    console.error("Error fetching template by ID:", error);
-    next(error);
+    console.error('Fetch template error:', error)
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch template'
+    })
   }
-};
-export const fetchTemplateBySlug = async (req, res, next) => {
+}
+
+// Fetch template by slug
+export const fetchTemplateBySlug = async (req, res) => {
   try {
-    const { slug } = req.params;
-    const template = await Template.findOne({ slug });
+    const { id: slug } = req.params
+    const userId = req.user._id
+
+    const template = await Template.findOne({ slug })
+
     if (!template) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Template not found" });
+      return res.status(404).json({
+        success: false,
+        message: 'Template not found'
+      })
     }
-    const showTemplate = await isUserOwnerOfTemplateOrTemplateIsPublic(
-      req.auth.userId,
-      template
-    );
-    if (!showTemplate) {
+
+    // Check access
+    if (!isUserOwnerOfTemplateOrTemplateIsPublic(userId.toString(), template)) {
       return res.status(403).json({
         success: false,
-        message: "Unauthorized to access this template",
-      });
+        message: 'Access denied'
+      })
     }
-    res.status(200).json({
+
+    return res.status(200).json({
       success: true,
-      data: template,
-      message: "Template fetched successfully",
-    });
+      data: template
+    })
   } catch (error) {
-    console.error("Error fetching template by slug:", error);
-    next(error);
+    console.error('Fetch template by slug error:', error)
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch template'
+    })
   }
-};
-export const updateTemplate = async (req, res, next) => {
+}
+
+// Update template
+export const updateTemplate = async (req, res) => {
   try {
-    const { name, content, description, isPublic } = req.body;
-    const { id } = req.params;
-    const template = await Template.findById(id);
+    const { id } = req.params
+    const { name, content, description, isPublic } = req.body
+    const userId = req.user._id
+
+    const template = await Template.findById(id)
+
     if (!template) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Template not found" });
+      return res.status(404).json({
+        success: false,
+        message: 'Template not found'
+      })
     }
-    const isOwner = isUserOwnerOfTemplate(req.auth.userId, template);
-    if (!isOwner) {
+
+    // Check ownership
+    if (!isUserOwnerOfTemplate(userId.toString(), template)) {
       return res.status(403).json({
         success: false,
-        message: "Unauthorized to update this template",
-      });
+        message: 'Access denied'
+      })
     }
-    const updatedTemplate = await Template.findByIdAndUpdate(
-      id,
-      { name, content, description, isPublic },
-      { new: true }
-    );
-    res.status(200).json({
+
+    // Update fields
+    if (name) template.name = name
+    if (content) template.content = content
+    if (description !== undefined) template.description = description
+    if (isPublic !== undefined) template.isPublic = isPublic
+
+    await template.save()
+
+    return res.status(200).json({
       success: true,
-      data: updatedTemplate,
-      message: "Template updated successfully",
-    });
+      message: 'Template updated successfully',
+      data: template
+    })
   } catch (error) {
-    console.error("Error updating template:", error);
-    next(error);
+    console.error('Update template error:', error)
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to update template'
+    })
   }
-};
-export const deleteTemplate = async (req, res, next) => {
+}
+
+// Delete template
+export const deleteTemplate = async (req, res) => {
   try {
-    const { id } = req.params;
-    const template = await Template.findById(id);
+    const { id } = req.params
+    const userId = req.user._id
+
+    const template = await Template.findById(id)
+
     if (!template) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Template not found" });
+      return res.status(404).json({
+        success: false,
+        message: 'Template not found'
+      })
     }
-    const isOwner = isUserOwnerOfTemplate(req.auth.userId, template);
-    if (!isOwner) {
+
+    // Check ownership
+    if (!isUserOwnerOfTemplate(userId.toString(), template)) {
       return res.status(403).json({
         success: false,
-        message: "Unauthorized to delete this template",
-      });
+        message: 'Access denied'
+      })
     }
-    await Template.findByIdAndDelete(id);
-    res.status(200).json({
+
+    // Remove from user's templates
+    await User.findByIdAndUpdate(userId, {
+      $pull: { templates: template._id }
+    })
+
+    // Delete template
+    await Template.findByIdAndDelete(id)
+
+    return res.status(200).json({
       success: true,
-      message: "Template deleted successfully",
-    });
+      message: 'Template deleted successfully'
+    })
   } catch (error) {
-    console.error("Error deleting template:", error);
-    next(error);
+    console.error('Delete template error:', error)
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to delete template'
+    })
   }
-};
-export const fetchPublicTemplates = async (req, res, next) => {
-  try {
-    const publicTemplates = await Template.find({ isPublic: true });
-    res.status(200).json({
-      success: true,
-      data: publicTemplates,
-      message: "Public templates fetched successfully",
-    });
-  } catch (error) {
-    console.error("Error fetching public templates:", error);
-    next(error);
-  }
-};
+}

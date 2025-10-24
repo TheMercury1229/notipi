@@ -4,7 +4,7 @@ import {
   sendBulkEmail,
   getQueueStats,
 } from "../controllers/email.controller.js";
-import apiKeyValidation from "../middlewares/apiKeyValidation.middleware.js";
+import { apiKeyValidation } from "../middlewares/apiKeyValidation.middleware.js";
 import {
   perUserRateLimiter,
   bulkEmailRateLimiter,

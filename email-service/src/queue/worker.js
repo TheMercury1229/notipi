@@ -6,6 +6,8 @@ import Log from "../models/log.model.js";
 import ApiKey from "../models/apikey.model.js";
 import User from "../models/user.model.js";
 import connectDB from "../config/dbConnect.js";
+import mongoose from "mongoose";
+
 
 // Connect to database
 await connectDB();
@@ -68,18 +70,24 @@ const worker = new Worker(
       console.error(`❌ Failed to send email to ${to}:`, error.message);
 
       // Log failure
-      await Log.create({
-        user: userId,
-        apiKey: apiKeyId,
-        eventType: "email",
-        status: "failure",
-        metadata: {
-          to,
-          subject,
-          templateId,
-          error: error.message,
-        },
-      });
+      const logData = {
+        status: "success",
+        to: job.data.to,
+        subject: job.data.subject,
+        templateId: job.data.templateId,
+        messageId: info?.messageId || null,
+      };
+
+      // ✅ Only set user/apiKey if they are valid ObjectIds
+      if (mongoose.Types.ObjectId.isValid(job.data.userId)) {
+        logData.user = job.data.userId;
+      }
+      if (mongoose.Types.ObjectId.isValid(job.data.apiKeyId)) {
+        logData.apiKey = job.data.apiKeyId;
+      }
+
+      await Log.create(logData);
+
 
       throw error; // Re-throw to trigger retry
     }
