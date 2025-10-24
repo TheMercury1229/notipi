@@ -11,7 +11,7 @@ export const createApiKey = async (req, res, next) => {
     const { rawKey, hashedKey } = await generateAPIKey();
     // Store the hashed API key in the database
     const newApiKey = new ApiKey({
-      userId,
+      user: userId,
       name,
       key: hashedKey,
       isRevoked: false,
