@@ -2,40 +2,30 @@ import { Queue } from "bullmq";
 import { redisConnection } from "./redisConnection.js";
 import envVars from "../config/envVars.js";
 
-// Create email queue
+// Create the BullMQ Queue
 export const emailQueue = new Queue(envVars.QUEUE_NAME, {
   connection: redisConnection,
   defaultJobOptions: {
-    attempts: 3,
-    backoff: {
-      type: "exponential",
-      delay: 2000,
-    },
-    removeOnComplete: {
-      count: 100, // Keep last 100 completed jobs
-      age: 24 * 3600, // Keep for 24 hours
-    },
-    removeOnFail: {
-      count: 500, // Keep last 500 failed jobs
-    },
+    attempts: 1,
+    backoff: { type: "exponential", delay: 2000 },
+    removeOnComplete: { count: 100, age: 24 * 3600 },
+    removeOnFail: { count: 500 },
   },
 });
 
 /**
- * Add email job to queue
- * @param {Object} emailData - Email data
- * @param {string} emailData.to - Recipient email
- * @param {string} emailData.subject - Email subject
- * @param {string} emailData.html - HTML content
- * @param {string} emailData.userId - User ID
- * @param {string} emailData.apiKeyId - API Key ID
- * @param {string} emailData.templateId - Template ID (optional)
- * @returns {Promise<Job>}
+ * Add email job to queue (one unique job per email)
+ * @param {Object} emailData
  */
 export async function addEmailToQueue(emailData) {
   try {
+    // Create a unique job ID for each specific request
+    const uniqueJobId = `job-${Date.now()}-${Math.random()
+      .toString(36)
+      .substring(2, 8)}`;
+
     const job = await emailQueue.add("send-email", emailData, {
-      jobId: `email-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      jobId: uniqueJobId, // ensures no duplicate execution
     });
 
     return job;
@@ -47,7 +37,6 @@ export async function addEmailToQueue(emailData) {
 
 /**
  * Get queue statistics
- * @returns {Promise<Object>}
  */
 export async function getQueueStats() {
   try {
@@ -58,12 +47,7 @@ export async function getQueueStats() {
       emailQueue.getFailedCount(),
     ]);
 
-    return {
-      waiting,
-      active,
-      completed,
-      failed,
-    };
+    return { waiting, active, completed, failed };
   } catch (error) {
     console.error("Error getting queue stats:", error);
     throw error;

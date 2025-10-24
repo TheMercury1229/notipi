@@ -1,15 +1,7 @@
 import rateLimit from "express-rate-limit";
 import RedisStore from "rate-limit-redis";
-import { Redis } from "ioredis";
 import envVars from "../config/envVars.js";
-
-// Create Redis client for rate limiting
-const rateLimitRedis = new Redis(envVars.REDIS_URL, {
-  enableReadyCheck: false,
-  tls: {
-    rejectUnauthorized: false,
-  },
-});
+import redisConnection from "../queue/redisConnection.js";
 
 /**
  * General API rate limiter
@@ -23,11 +15,11 @@ export const apiRateLimiter = rateLimit({
     message: "Too many requests, please try again later.",
     retryAfter: Math.ceil(envVars.RATE_LIMIT_WINDOW_MS / 1000),
   },
-  standardHeaders: true, // Return rate limit info in headers
+  standardHeaders: true,
   legacyHeaders: false,
   store: new RedisStore({
-    // @ts-expect-error - Known issue with the library
-    client: rateLimitRedis,
+    // Use sendCommand wrapper for ioredis compatibility
+    sendCommand: (...args) => redisConnection.call(...args),
     prefix: "rl:api:",
   }),
   skip: (req) => {
@@ -51,8 +43,7 @@ export const perUserRateLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   store: new RedisStore({
-    // @ts-expect-error - Known issue with the library
-    client: rateLimitRedis,
+    sendCommand: (...args) => redisConnection.call(...args),
     prefix: "rl:user:",
   }),
   keyGenerator: (req) => {
@@ -77,8 +68,7 @@ export const bulkEmailRateLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   store: new RedisStore({
-    // @ts-expect-error - Known issue with the library
-    client: rateLimitRedis,
+    sendCommand: (...args) => redisConnection.call(...args),
     prefix: "rl:bulk:",
   }),
   keyGenerator: (req) => {
@@ -101,8 +91,7 @@ export function createCustomRateLimiter(max, windowMs, prefix) {
     standardHeaders: true,
     legacyHeaders: false,
     store: new RedisStore({
-      // @ts-expect-error - Known issue with the library
-      client: rateLimitRedis,
+      sendCommand: (...args) => redisConnection.call(...args),
       prefix: `rl:${prefix}:`,
     }),
     keyGenerator: (req) => {

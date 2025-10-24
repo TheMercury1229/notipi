@@ -1,59 +1,34 @@
 import ApiKey from "../models/apikey.model.js";
 import bcrypt from "bcryptjs";
+import { errorResponse } from "../utils/responseHandler.js";
 
-export default async function apiKeyValidation(req, res, next) {
+export const apiKeyValidation = async (req, res, next) => {
   try {
-    const apiKey = req.header("x-api-key");
+    const providedKey = req.headers["x-api-key"];
 
-    if (!apiKey) {
-      return res.status(401).json({
-        success: false,
-        message: "API key is missing. Please provide x-api-key header",
-      });
+    if (!providedKey) {
+      return errorResponse(res, 401, "API key is required.");
     }
 
-    // API key format: notipi_live_xxxxxxxxxxxxx or notipi_test_xxxxxxxxxxxxx
-    const parts = apiKey.split("_");
-    if (parts.length !== 3 || parts[0] !== "notipi") {
-      return res.status(401).json({
-        success: false,
-        message: "Invalid API key format",
-      });
-    }
+    // Get all keys and compare via bcrypt
+    const allKeys = await ApiKey.find();
+    let validKey = false;
 
-    const keySecret = parts[2];
-
-    // Find all non-revoked API keys
-    const apiKeys = await ApiKey.find({ isRevoked: false });
-
-    let matchedKey = null;
-    for (const key of apiKeys) {
-      const isMatch = await bcrypt.compare(keySecret, key.hashedKey);
-      if (isMatch) {
-        matchedKey = key;
+    for (const keyDoc of allKeys) {
+      const match = await bcrypt.compare(providedKey, keyDoc.hashedKey);
+      if (match && !keyDoc.isRevoked) {
+        validKey = true;
         break;
       }
     }
 
-    if (!matchedKey) {
-      return res.status(403).json({
-        success: false,
-        message: "Invalid or revoked API key",
-      });
+    if (!validKey) {
+      return errorResponse(res, 401, "Invalid or revoked API key");
     }
-
-    // Attach user and API key info to request
-    req.auth = {
-      apiKeyId: matchedKey._id,
-      userId: matchedKey.user,
-    };
 
     next();
   } catch (error) {
     console.error("API key validation error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Internal server error",
-    });
+    return errorResponse(res, 500, "API key validation failed");
   }
-}
+};

@@ -9,8 +9,8 @@ import {
 } from "../controllers/apiKey.controller.js";
 
 const apiKeyRouter = Router();
-apiKeyRouter.use(checkAuth);
 
+apiKeyRouter.use(checkAuth);
 apiKeyRouter.post("/", createApiKey);
 apiKeyRouter.patch("/:id", updateApiKey);
 apiKeyRouter.delete("/:id", deleteApiKey);
