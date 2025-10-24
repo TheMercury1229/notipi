@@ -43,7 +43,7 @@ const userSchema = new mongoose.Schema(
 );
 
 // Create index on clerkId
-userSchema.index({ clerkId: 1 });
+// userSchema.index({ clerkId: 1 });
 
 const User = mongoose.model("User", userSchema);
 

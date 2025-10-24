@@ -6,7 +6,7 @@ import {
   fetchAllApiKeys,
   fetchApiKeyById,
   updateApiKey,
-} from "../controllers/apiKey.controller";
+} from "../controllers/apiKey.controller.js";
 
 const apiKeyRouter = Router();
 apiKeyRouter.use(checkAuth);
