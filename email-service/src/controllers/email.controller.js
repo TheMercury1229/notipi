@@ -1,7 +1,11 @@
 import Template from "../models/template.model.js";
 import User from "../models/user.model.js";
 import { addEmailToQueue } from "../queue/emailQueue.js";
-import { renderTemplate, isValidEmail, validateEmails } from "../utils/templateRenderer.js";
+import {
+  renderTemplate,
+  isValidEmail,
+  validateEmails,
+} from "../utils/templateRenderer.js";
 
 /**
  * Helper: get auth identity dynamically
@@ -98,7 +102,8 @@ export const sendEmail = async (req, res) => {
       if (!html) {
         return res.status(400).json({
           success: false,
-          message: "Either templateId/templateSlug or raw html/content required",
+          message:
+            "Either templateId/templateSlug or raw html/content required",
         });
       }
     }
@@ -122,8 +127,7 @@ export const sendEmail = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to queue email",
-      error:
-        process.env.NODE_ENV === "development" ? error.message : undefined,
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
 };
@@ -244,8 +248,7 @@ export const sendBulkEmail = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to queue bulk emails",
-      error:
-        process.env.NODE_ENV === "development" ? error.message : undefined,
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
 };
