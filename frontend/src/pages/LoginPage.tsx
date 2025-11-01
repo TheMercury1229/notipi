@@ -11,10 +11,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { axiosInstance } from "@/lib/axios";
-import { API_PATHS } from "@/lib/apiPaths";
 import { useAuthStore } from "@/store/authStore";
 import { toast } from "sonner";
+import { authService } from "@/lib/api.service";
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -26,33 +25,30 @@ export default function LoginPage() {
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
+  e.preventDefault();
+  setIsLoading(true);
 
-    try {
-      const response = await axiosInstance.post(API_PATHS.AUTH.LOGIN, formData);
+  try {
+    const response = await authService.login(formData.email, formData.password);
 
-      if (response.data.success) {
-        setToken(response.data.token);
-        setUser(
-          response.data.user || {
-            _id: response.data.data?._id,
-            name: formData.email.split("@")[0],
-            email: formData.email,
-            usage: [],
-          }
-        );
-
-        toast.success("Login successful");
-
-        navigate("/dashboard");
+    if (response.success) {
+      setToken(response.token);
+      
+      // Fetch complete user profile
+      const profileResponse = await authService.getUserProfile();
+      if (profileResponse.success) {
+        setUser(profileResponse.data);
       }
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Login failed");
-    } finally {
-      setIsLoading(false);
+
+      toast.success("Login successful");
+      navigate("/dashboard");
     }
-  };
+  } catch (error: any) {
+    toast.error(error.response?.data?.message || "Login failed");
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-muted/30">

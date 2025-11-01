@@ -23,16 +23,18 @@ export const API_PATHS = {
 
   // API Keys endpoints
   API_KEYS: {
-    BASE: "/api/api-keys",
-    GET_ALL: "/api/api-keys",
-    CREATE: "/api/api-keys",
-    REVOKE: (id: string) => `/api/api-keys/${id}/revoke`,
-    DELETE: (id: string) => `/api/api-keys/${id}`,
+    BASE: "/api/apikeys",
+    GET_ALL: "/api/apikeys",
+    CREATE: "/api/apikeys",
+    REVOKE: (id: string) => `/api/apikeys/${id}/revoke`,
+    RESTORE: (id: string) => `/api/apikeys/${id}/restore`,
+    DELETE: (id: string) => `/api/apikeys/${id}`,
   },
 
   // Analytics endpoints
   ANALYTICS: {
     STATS: "/api/analytics/stats",
     LOGS: "/api/analytics/logs",
+    REALTIME: "/api/analytics/realtime",
   },
 };
