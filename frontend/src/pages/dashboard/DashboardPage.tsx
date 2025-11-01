@@ -1,7 +1,9 @@
-import { Mail, FileText, Key, TrendingUp } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Mail, FileText, Key, TrendingUp, Loader2 } from "lucide-react";
 import { Navbar } from "@/components/dashboard/Navbar";
 import { DashboardCard } from "@/components/dashboard/DashboardCard";
 import { useUserStore } from "@/store/userStore";
+import { useAuthStore } from "@/store/authStore";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -11,6 +13,8 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import { Line, LineChart, XAxis, YAxis, CartesianGrid } from "recharts";
+import { authService, templateService, apiKeyService } from "@/lib/api.service";
+import { toast } from "sonner";
 
 const emailData = [
   { day: "Mon", emails: 45 },
@@ -30,13 +34,91 @@ const chartConfig = {
 } satisfies ChartConfig;
 
 export default function DashboardPage() {
-  const { stats } = useUserStore();
+  const { stats, updateStats } = useUserStore();
+  const { user } = useAuthStore();
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+
+      // Fetch all data in parallel
+      const [templatesRes, apiKeysRes, profileRes] = await Promise.all([
+        templateService.getAllTemplates().catch((err) => {
+          console.error("Templates fetch error:", err);
+          return null;
+        }),
+        apiKeyService.getAllApiKeys().catch((err) => {
+          console.error("API keys fetch error:", err);
+          return null;
+        }),
+        authService.getUserProfile().catch((err) => {
+          console.error("Profile fetch error:", err);
+          return null;
+        }),
+      ]);
+
+      // Update stats based on real data
+      const updates: any = {};
+
+      if (templatesRes?.success && templatesRes.data) {
+        updates.templatesCreated = templatesRes.data.length;
+      }
+
+      if (apiKeysRes?.success && apiKeysRes.data) {
+        const activeKeys = apiKeysRes.data.filter(
+          (key: any) => !key.isRevoked
+        );
+        updates.activeApiKeys = activeKeys.length;
+      }
+
+      if (profileRes?.success && profileRes.data?.usage) {
+        const emailUsage = profileRes.data.usage.find(
+          (u: any) => u.type === "email"
+        );
+        if (emailUsage) {
+          updates.emailsSent = emailUsage.usedLimit || 0;
+          updates.usageLimit = emailUsage.allowedLimit || 5000;
+          updates.usagePercentage = Math.round(
+            ((emailUsage.usedLimit || 0) / (emailUsage.allowedLimit || 5000)) *
+              100
+          );
+        }
+      }
+
+      // Apply updates if we have any
+      if (Object.keys(updates).length > 0) {
+        updateStats(updates);
+      }
+    } catch (error: any) {
+      console.error("Failed to fetch dashboard data:", error);
+      // Don't show error toast on initial load, as it might be expected
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="flex-1 ">
       <Navbar title="Dashboard" />
 
       <main className="p-6 space-y-6 overflow-auto">
+        {/* Loading State */}
+        {loading && (
+          <div className="flex items-center justify-center py-8">
+            <div className="flex items-center gap-3">
+              <Loader2 className="w-5 h-5 animate-spin text-primary" />
+              <span className="text-sm text-muted-foreground">
+                Loading dashboard data...
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* Stats Cards */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <DashboardCard

@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Navbar } from "@/components/dashboard/Navbar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -29,7 +30,11 @@ import {
   CartesianGrid,
 } from "recharts";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Loader2 } from "lucide-react";
+import { analyticsService } from "@/lib/api.service";
+import { toast } from "sonner";
 
+// Mock data as fallback
 const notificationTypeData = [
   { type: "Email", value: 1248, fill: "var(--color-Email)" },
   { type: "SMS", value: 342, fill: "var(--color-SMS)" },
@@ -96,63 +101,87 @@ const lineChartConfig = {
 } satisfies ChartConfig;
 
 interface Log {
-  id: string;
-  recipient: string;
-  type: "email" | "sms" | "in-app";
-  status: "delivered" | "failed" | "pending";
-  timestamp: string;
+  _id: string;
+  eventType: string;
+  status: string;
+  metadata: any;
+  createdAt: string;
 }
 
-const mockLogs: Log[] = [
-  {
-    id: "1",
-    recipient: "user@example.com",
-    type: "email",
-    status: "delivered",
-    timestamp: "2024-01-20 14:30:22",
-  },
-  {
-    id: "2",
-    recipient: "+1234567890",
-    type: "sms",
-    status: "delivered",
-    timestamp: "2024-01-20 14:28:15",
-  },
-  {
-    id: "3",
-    recipient: "john.doe@company.com",
-    type: "email",
-    status: "failed",
-    timestamp: "2024-01-20 14:25:08",
-  },
-  {
-    id: "4",
-    recipient: "user123",
-    type: "in-app",
-    status: "delivered",
-    timestamp: "2024-01-20 14:20:45",
-  },
-  {
-    id: "5",
-    recipient: "alice@startup.io",
-    type: "email",
-    status: "pending",
-    timestamp: "2024-01-20 14:15:33",
-  },
-];
-
 export default function AnalyticsPage() {
-  const getStatusBadge = (status: Log["status"]) => {
-    const variants = {
-      delivered: "default",
-      failed: "destructive",
-      pending: "secondary",
-    } as const;
-    return <Badge variant={variants[status]}>{status}</Badge>;
+  const [logs, setLogs] = useState<Log[]>([]);
+  const [stats, setStats] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [logsLoading, setLogsLoading] = useState(true);
+
+  useEffect(() => {
+    fetchAnalytics();
+  }, []);
+
+  const fetchAnalytics = async () => {
+    try {
+      setLoading(true);
+      setLogsLoading(true);
+
+      // Fetch stats and logs in parallel
+      const [statsResponse, logsResponse] = await Promise.all([
+        analyticsService.getStats().catch(() => null),
+        analyticsService.getLogs({ limit: 10 }).catch(() => null),
+      ]);
+
+      if (statsResponse?.success) {
+        setStats(statsResponse.data);
+      }
+
+      if (logsResponse?.success) {
+        setLogs(logsResponse.data);
+      }
+    } catch (error: any) {
+      // Only show error if it's not a 404 (endpoint might not exist yet)
+      if (error.response?.status !== 404) {
+        toast.error("Failed to fetch analytics data");
+      }
+    } finally {
+      setLoading(false);
+      setLogsLoading(false);
+    }
   };
 
-  const getTypeBadge = (type: Log["type"]) => {
+  const getStatusBadge = (status: string) => {
+    const statusMap: Record<string, "default" | "destructive" | "secondary"> = {
+      success: "default",
+      delivered: "default",
+      failure: "destructive",
+      failed: "destructive",
+      pending: "secondary",
+    };
+
+    return (
+      <Badge variant={statusMap[status.toLowerCase()] || "secondary"}>
+        {status}
+      </Badge>
+    );
+  };
+
+  const getTypeBadge = (type: string) => {
     return <Badge variant="outline">{type}</Badge>;
+  };
+
+  // Format log data for display
+  const formatLog = (log: Log) => {
+    const recipient =
+      log.metadata?.recipient ||
+      log.metadata?.to ||
+      log.metadata?.email ||
+      "N/A";
+
+    return {
+      id: log._id,
+      recipient,
+      type: log.eventType,
+      status: log.status,
+      timestamp: new Date(log.createdAt).toLocaleString(),
+    };
   };
 
   return (
@@ -160,6 +189,19 @@ export default function AnalyticsPage() {
       <Navbar title="Analytics" />
 
       <main className="p-6 space-y-6">
+        {/* Info Banner if analytics endpoint doesn't exist */}
+        {!loading && !stats && (
+          <Card className="border-blue-200 bg-blue-50">
+            <CardContent className="pt-6">
+              <p className="text-sm text-blue-900">
+                <strong>Note:</strong> Analytics endpoints are not yet
+                implemented in the backend. Showing mock data for
+                demonstration purposes.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Notification Type Distribution */}
         <div className="grid gap-6 md:grid-cols-2">
           <Card>
@@ -167,64 +209,72 @@ export default function AnalyticsPage() {
               <CardTitle>Notifications by Type</CardTitle>
             </CardHeader>
             <CardContent>
-              <ChartContainer
-                config={pieChartConfig}
-                className="mx-auto aspect-square max-h-[300px]"
-              >
-                <PieChart>
-                  <ChartTooltip content={<ChartTooltipContent hideLabel />} />
-                  <Pie
-                    data={notificationTypeData}
-                    dataKey="value"
-                    nameKey="type"
-                    label={({ payload, ...props }) => {
-                      return (
-                        <text
-                          cx={props.cx}
-                          cy={props.cy}
-                          x={props.x}
-                          y={props.y}
-                          textAnchor={props.textAnchor}
-                          dominantBaseline={props.dominantBaseline}
-                          fill="hsla(var(--foreground))"
-                          className="text-xs"
-                        >
-                          {`${payload.type} ${(
-                            (payload.value /
-                              notificationTypeData.reduce(
-                                (a, b) => a + b.value,
-                                0
-                              )) *
-                            100
-                          ).toFixed(0)}%`}
-                        </text>
-                      );
-                    }}
-                  />
-                </PieChart>
-              </ChartContainer>
-              <div className="mt-4 space-y-2">
-                {notificationTypeData.map((item) => (
-                  <div
-                    key={item.type}
-                    className="flex items-center justify-between"
+              {loading ? (
+                <div className="flex items-center justify-center h-[300px]">
+                  <Loader2 className="w-6 h-6 animate-spin" />
+                </div>
+              ) : (
+                <>
+                  <ChartContainer
+                    config={pieChartConfig}
+                    className="mx-auto aspect-square max-h-[300px]"
                   >
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="w-3 h-3 rounded-full"
-                        // style={{
-                        //   backgroundColor:
-                        //     pieChartConfig[
-                        //       item.type as keyof typeof pieChartConfig
-                        //     ].,
-                        // }}
+                    <PieChart>
+                      <ChartTooltip content={<ChartTooltipContent hideLabel />} />
+                      <Pie
+                        data={notificationTypeData}
+                        dataKey="value"
+                        nameKey="type"
+                        label={({ payload, ...props }) => {
+                          return (
+                            <text
+                              cx={props.cx}
+                              cy={props.cy}
+                              x={props.x}
+                              y={props.y}
+                              textAnchor={props.textAnchor}
+                              dominantBaseline={props.dominantBaseline}
+                              fill="hsla(var(--foreground))"
+                              className="text-xs"
+                            >
+                              {`${payload.type} ${(
+                                (payload.value /
+                                  notificationTypeData.reduce(
+                                    (a, b) => a + b.value,
+                                    0
+                                  )) *
+                                100
+                              ).toFixed(0)}%`}
+                            </text>
+                          );
+                        }}
                       />
-                      <span className="text-sm">{item.type}</span>
-                    </div>
-                    <span className="text-sm font-medium">{item.value}</span>
+                    </PieChart>
+                  </ChartContainer>
+                  <div className="mt-4 space-y-2">
+                    {notificationTypeData.map((item) => (
+                      <div
+                        key={item.type}
+                        className="flex items-center justify-between"
+                      >
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-3 h-3 rounded-full"
+                            style={{
+                              backgroundColor: item.fill.replace(
+                                "var(--color-",
+                                ""
+                              ).replace(")", ""),
+                            }}
+                          />
+                          <span className="text-sm">{item.type}</span>
+                        </div>
+                        <span className="text-sm font-medium">{item.value}</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </>
+              )}
             </CardContent>
           </Card>
 
@@ -233,33 +283,39 @@ export default function AnalyticsPage() {
               <CardTitle>Weekly Activity</CardTitle>
             </CardHeader>
             <CardContent>
-              <ChartContainer
-                config={barChartConfig}
-                className="h-[300px] w-full"
-              >
-                <BarChart data={weeklyActivityData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="day" />
-                  <YAxis />
-                  <ChartTooltip content={<ChartTooltipContent />} />
-                  <ChartLegend content={<ChartLegendContent />} />
-                  <Bar
-                    dataKey="emails"
-                    fill="var(--color-emails)"
-                    radius={[4, 4, 0, 0]}
-                  />
-                  <Bar
-                    dataKey="sms"
-                    fill="var(--color-sms)"
-                    radius={[4, 4, 0, 0]}
-                  />
-                  <Bar
-                    dataKey="inApp"
-                    fill="var(--color-inApp)"
-                    radius={[4, 4, 0, 0]}
-                  />
-                </BarChart>
-              </ChartContainer>
+              {loading ? (
+                <div className="flex items-center justify-center h-[300px]">
+                  <Loader2 className="w-6 h-6 animate-spin" />
+                </div>
+              ) : (
+                <ChartContainer
+                  config={barChartConfig}
+                  className="h-[300px] w-full"
+                >
+                  <BarChart data={weeklyActivityData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="day" />
+                    <YAxis />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <ChartLegend content={<ChartLegendContent />} />
+                    <Bar
+                      dataKey="emails"
+                      fill="var(--color-emails)"
+                      radius={[4, 4, 0, 0]}
+                    />
+                    <Bar
+                      dataKey="sms"
+                      fill="var(--color-sms)"
+                      radius={[4, 4, 0, 0]}
+                    />
+                    <Bar
+                      dataKey="inApp"
+                      fill="var(--color-inApp)"
+                      radius={[4, 4, 0, 0]}
+                    />
+                  </BarChart>
+                </ChartContainer>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -270,24 +326,30 @@ export default function AnalyticsPage() {
             <CardTitle>24-Hour Activity Pattern</CardTitle>
           </CardHeader>
           <CardContent>
-            <ChartContainer
-              config={lineChartConfig}
-              className="h-[300px] w-full"
-            >
-              <LineChart data={dailyActivityData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="hour" />
-                <YAxis />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Line
-                  type="monotone"
-                  dataKey="notifications"
-                  stroke="var(--color-notifications)"
-                  strokeWidth={2}
-                  dot={{ fill: "var(--color-notifications)" }}
-                />
-              </LineChart>
-            </ChartContainer>
+            {loading ? (
+              <div className="flex items-center justify-center h-[300px]">
+                <Loader2 className="w-6 h-6 animate-spin" />
+              </div>
+            ) : (
+              <ChartContainer
+                config={lineChartConfig}
+                className="h-[300px] w-full"
+              >
+                <LineChart data={dailyActivityData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="hour" />
+                  <YAxis />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Line
+                    type="monotone"
+                    dataKey="notifications"
+                    stroke="var(--color-notifications)"
+                    strokeWidth={2}
+                    dot={{ fill: "var(--color-notifications)" }}
+                  />
+                </LineChart>
+              </ChartContainer>
+            )}
           </CardContent>
         </Card>
 
@@ -297,43 +359,25 @@ export default function AnalyticsPage() {
             <CardTitle>Recent Activity Logs</CardTitle>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="all">
-              <TabsList className="mb-4">
-                <TabsTrigger value="all">All</TabsTrigger>
-                <TabsTrigger value="email">Email</TabsTrigger>
-                <TabsTrigger value="sms">SMS</TabsTrigger>
-                <TabsTrigger value="in-app">In-App</TabsTrigger>
-              </TabsList>
+            {logsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin" />
+              </div>
+            ) : logs.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                No activity logs found. Start sending notifications to see logs
+                here.
+              </div>
+            ) : (
+              <Tabs defaultValue="all">
+                <TabsList className="mb-4">
+                  <TabsTrigger value="all">All</TabsTrigger>
+                  <TabsTrigger value="email">Email</TabsTrigger>
+                  <TabsTrigger value="sms">SMS</TabsTrigger>
+                  <TabsTrigger value="push_notification">Push</TabsTrigger>
+                </TabsList>
 
-              <TabsContent value="all">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Recipient</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Timestamp</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {mockLogs.map((log) => (
-                      <TableRow key={log.id}>
-                        <TableCell className="font-mono text-sm">
-                          {log.recipient}
-                        </TableCell>
-                        <TableCell>{getTypeBadge(log.type)}</TableCell>
-                        <TableCell>{getStatusBadge(log.status)}</TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {log.timestamp}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TabsContent>
-
-              {(["email", "sms", "in-app"] as const).map((filterType) => (
-                <TabsContent key={filterType} value={filterType}>
+                <TabsContent value="all">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -344,25 +388,70 @@ export default function AnalyticsPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {mockLogs
-                        .filter((log) => log.type === filterType)
-                        .map((log) => (
-                          <TableRow key={log.id}>
+                      {logs.map((log) => {
+                        const formattedLog = formatLog(log);
+                        return (
+                          <TableRow key={formattedLog.id}>
                             <TableCell className="font-mono text-sm">
-                              {log.recipient}
+                              {formattedLog.recipient}
                             </TableCell>
-                            <TableCell>{getTypeBadge(log.type)}</TableCell>
-                            <TableCell>{getStatusBadge(log.status)}</TableCell>
+                            <TableCell>
+                              {getTypeBadge(formattedLog.type)}
+                            </TableCell>
+                            <TableCell>
+                              {getStatusBadge(formattedLog.status)}
+                            </TableCell>
                             <TableCell className="text-muted-foreground">
-                              {log.timestamp}
+                              {formattedLog.timestamp}
                             </TableCell>
                           </TableRow>
-                        ))}
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </TabsContent>
-              ))}
-            </Tabs>
+
+                {(["email", "sms", "push_notification"] as const).map(
+                  (filterType) => (
+                    <TabsContent key={filterType} value={filterType}>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Recipient</TableHead>
+                            <TableHead>Type</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Timestamp</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {logs
+                            .filter((log) => log.eventType === filterType)
+                            .map((log) => {
+                              const formattedLog = formatLog(log);
+                              return (
+                                <TableRow key={formattedLog.id}>
+                                  <TableCell className="font-mono text-sm">
+                                    {formattedLog.recipient}
+                                  </TableCell>
+                                  <TableCell>
+                                    {getTypeBadge(formattedLog.type)}
+                                  </TableCell>
+                                  <TableCell>
+                                    {getStatusBadge(formattedLog.status)}
+                                  </TableCell>
+                                  <TableCell className="text-muted-foreground">
+                                    {formattedLog.timestamp}
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                        </TableBody>
+                      </Table>
+                    </TabsContent>
+                  )
+                )}
+              </Tabs>
+            )}
           </CardContent>
         </Card>
       </main>

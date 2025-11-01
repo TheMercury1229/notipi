@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Navbar } from "@/components/dashboard/Navbar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,59 +20,94 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Copy, Plus, Trash2, Eye, EyeOff } from "lucide-react";
+import { Copy, Plus, Trash2, Eye, EyeOff, Loader2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
+import { apiKeyService } from "@/lib/api.service";
 
 interface ApiKey {
-  id: string;
+  _id: string;
   name: string;
-  key: string;
+  key?: string;
+  hashedKey?: string;
   createdAt: string;
-  status: "active" | "revoked";
+  isRevoked: boolean;
 }
-
-const mockApiKeys: ApiKey[] = [
-  {
-    id: "1",
-    name: "Production Key",
-    key: "npi_prod_k8s9d7f6g5h4j3k2l1m0n9o8p7q6r5s4",
-    createdAt: "2024-01-10",
-    status: "active",
-  },
-  {
-    id: "2",
-    name: "Development Key",
-    key: "npi_dev_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6",
-    createdAt: "2024-01-12",
-    status: "active",
-  },
-  {
-    id: "3",
-    name: "Staging Key",
-    key: "npi_stg_z9y8x7w6v5u4t3s2r1q0p9o8n7m6l5k4",
-    createdAt: "2024-01-08",
-    status: "revoked",
-  },
-];
 
 export default function ApiKeysPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isKeyGenerated, setIsKeyGenerated] = useState(false);
-  const [apiKeys] = useState<ApiKey[]>(mockApiKeys);
+  const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
   const [newKeyName, setNewKeyName] = useState("");
   const [generatedKey, setGeneratedKey] = useState("");
   const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(false);
+  const [fetchLoading, setFetchLoading] = useState(true);
 
-  const handleGenerateKey = () => {
-    const key = `npi_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-    setGeneratedKey(key);
-    setIsKeyGenerated(true);
+  // Fetch API keys on component mount
+  useEffect(() => {
+    fetchApiKeys();
+  }, []);
+
+  const fetchApiKeys = async () => {
+    try {
+      setFetchLoading(true);
+      const response = await apiKeyService.getAllApiKeys();
+      if (response.success) {
+        setApiKeys(response.data);
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to fetch API keys");
+    } finally {
+      setFetchLoading(false);
+    }
+  };
+
+  const handleGenerateKey = async () => {
+    if (!newKeyName.trim()) {
+      toast.error("Please enter a key name");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const response = await apiKeyService.createApiKey(newKeyName);
+
+      if (response.success) {
+        // The raw key is only returned once during creation
+        setGeneratedKey(response.data.key);
+        setIsKeyGenerated(true);
+        toast.success("API Key generated successfully!");
+
+        // Refresh the list
+        await fetchApiKeys();
+      }
+    } catch (error: any) {
+      toast.error(
+        error.response?.data?.message || "Failed to generate API key"
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleCopyKey = (key: string) => {
     navigator.clipboard.writeText(key);
     toast.success("API Key copied to clipboard!");
+  };
+
+  const handleDeleteKey = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this API key?")) return;
+
+    try {
+      const response = await apiKeyService.deleteApiKey(id);
+      if (response.success) {
+        toast.success("API Key deleted successfully!");
+        await fetchApiKeys();
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to delete API key");
+    }
   };
 
   const toggleKeyVisibility = (keyId: string) => {
@@ -88,9 +123,19 @@ export default function ApiKeysPage() {
   };
 
   const maskKey = (key: string) => {
+    if (!key) return "••••••••••••";
     const prefix = key.substring(0, 12);
     const suffix = key.substring(key.length - 4);
     return `${prefix}••••••••${suffix}`;
+  };
+
+  const handleDialogClose = (open: boolean) => {
+    setIsCreateOpen(open);
+    if (!open) {
+      setIsKeyGenerated(false);
+      setNewKeyName("");
+      setGeneratedKey("");
+    }
   };
 
   return (
@@ -110,92 +155,99 @@ export default function ApiKeysPage() {
             <CardTitle>Your API Keys</CardTitle>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>API Key</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Created At</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {apiKeys.map((apiKey) => (
-                  <TableRow key={apiKey.id}>
-                    <TableCell className="font-medium">{apiKey.name}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <code className="text-sm font-mono">
-                          {visibleKeys.has(apiKey.id)
-                            ? apiKey.key
-                            : maskKey(apiKey.key)}
-                        </code>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={() => toggleKeyVisibility(apiKey.id)}
-                        >
-                          {visibleKeys.has(apiKey.id) ? (
-                            <EyeOff className="w-3 h-3" />
-                          ) : (
-                            <Eye className="w-3 h-3" />
-                          )}
-                        </Button>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={
-                          apiKey.status === "active" ? "default" : "secondary"
-                        }
-                      >
-                        {apiKey.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {new Date(apiKey.createdAt).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleCopyKey(apiKey.key)}
-                          disabled={apiKey.status === "revoked"}
-                        >
-                          <Copy className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          disabled={apiKey.status === "revoked"}
-                        >
-                          <Trash2 className="w-4 h-4 text-destructive" />
-                        </Button>
-                      </div>
-                    </TableCell>
+            {fetchLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin" />
+              </div>
+            ) : apiKeys.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                No API keys found. Generate your first API key to get started.
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>API Key</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Created At</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {apiKeys.map((apiKey) => (
+                    <TableRow key={apiKey._id}>
+                      <TableCell className="font-medium">
+                        {apiKey.name}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <code className="text-sm font-mono">
+                            {visibleKeys.has(apiKey._id) && apiKey.key
+                              ? apiKey.key
+                              : maskKey(apiKey.key || apiKey.hashedKey || "")}
+                          </code>
+                          {apiKey.key && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={() => toggleKeyVisibility(apiKey._id)}
+                            >
+                              {visibleKeys.has(apiKey._id) ? (
+                                <EyeOff className="w-3 h-3" />
+                              ) : (
+                                <Eye className="w-3 h-3" />
+                              )}
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={
+                            apiKey.isRevoked ? "secondary" : "default"
+                          }
+                        >
+                          {apiKey.isRevoked ? "revoked" : "active"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {new Date(apiKey.createdAt).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          {apiKey.key && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleCopyKey(apiKey.key!)}
+                              disabled={apiKey.isRevoked}
+                            >
+                              <Copy className="w-4 h-4" />
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDeleteKey(apiKey._id)}
+                            disabled={apiKey.isRevoked}
+                          >
+                            <Trash2 className="w-4 h-4 text-destructive" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
           </CardContent>
         </Card>
       </main>
 
       {/* Generate API Key Dialog */}
-      <Dialog
-        open={isCreateOpen}
-        onOpenChange={(open) => {
-          setIsCreateOpen(open);
-          if (!open) {
-            setIsKeyGenerated(false);
-            setNewKeyName("");
-            setGeneratedKey("");
-          }
-        }}
-      >
+      <Dialog open={isCreateOpen} onOpenChange={handleDialogClose}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Generate New API Key</DialogTitle>
@@ -214,6 +266,7 @@ export default function ApiKeysPage() {
                     placeholder="Production Key"
                     value={newKeyName}
                     onChange={(e) => setNewKeyName(e.target.value)}
+                    disabled={loading}
                   />
                   <p className="text-xs text-muted-foreground">
                     A descriptive name to identify this key
@@ -224,11 +277,22 @@ export default function ApiKeysPage() {
                 <Button
                   variant="outline"
                   onClick={() => setIsCreateOpen(false)}
+                  disabled={loading}
                 >
                   Cancel
                 </Button>
-                <Button onClick={handleGenerateKey} disabled={!newKeyName}>
-                  Generate Key
+                <Button
+                  onClick={handleGenerateKey}
+                  disabled={!newKeyName || loading}
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    "Generate Key"
+                  )}
                 </Button>
               </div>
             </>
@@ -240,8 +304,8 @@ export default function ApiKeysPage() {
                     Your API Key has been generated!
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    Make sure to copy your API key now. You won't be able to see
-                    it again!
+                    Make sure to copy your API key now. You won't be able to
+                    see it again!
                   </p>
                   <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
                     <code className="text-sm font-mono flex-1 break-all">
@@ -258,7 +322,7 @@ export default function ApiKeysPage() {
                 </AlertDescription>
               </Alert>
               <div className="flex justify-end">
-                <Button onClick={() => setIsCreateOpen(false)}>Done</Button>
+                <Button onClick={() => handleDialogClose(false)}>Done</Button>
               </div>
             </>
           )}

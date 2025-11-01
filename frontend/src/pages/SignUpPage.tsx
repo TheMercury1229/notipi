@@ -11,14 +11,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { axiosInstance } from "@/lib/axios";
-import { API_PATHS } from "@/lib/apiPaths";
-import { useAuthStore } from "@/store/authStore";
+import { authService } from "@/lib/api.service";
 import { toast } from "sonner";
 
 export default function SignUpPage() {
   const navigate = useNavigate();
-  const { setUser, setToken } = useAuthStore();
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
@@ -31,25 +28,15 @@ export default function SignUpPage() {
     setIsLoading(true);
 
     try {
-      const response = await axiosInstance.post(
-        API_PATHS.AUTH.SIGNUP,
-        formData
+      const response = await authService.signup(
+        formData.name,
+        formData.email,
+        formData.password
       );
 
-      if (response.data.success) {
-        setToken(response.data.token);
-        setUser(
-          response.data.user || {
-            _id: response.data.data?._id,
-            name: formData.name,
-            email: formData.email,
-            usage: [],
-          }
-        );
-
-        toast.success("Account created successfully");
-
-        navigate("/dashboard");
+      if (response.success) {
+        toast.success("Account created successfully! Please log in.");
+        navigate("/login");
       }
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Sign up failed");
