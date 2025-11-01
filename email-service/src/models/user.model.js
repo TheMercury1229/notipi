@@ -2,10 +2,18 @@ import mongoose from "mongoose";
 
 const userSchema = new mongoose.Schema(
   {
-    clerkId: {
+    name: {
+      type: String,
+      required: true,
+    },
+    email: {
       type: String,
       required: true,
       unique: true,
+    },
+    password: {
+      type: String,
+      required: true,
     },
     apiKeys: [
       {
@@ -43,7 +51,7 @@ const userSchema = new mongoose.Schema(
 );
 
 // Create index on clerkId
-userSchema.index({ clerkId: 1 });
+// userSchema.index({ clerkId: 1 });
 
 const User = mongoose.model("User", userSchema);
 
