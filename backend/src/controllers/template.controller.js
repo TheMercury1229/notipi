@@ -254,6 +254,14 @@ export const deleteTemplate = async (req, res) => {
 export const createTemplateWithAI = async (req, res) => {
   try {
     const { prompt } = req.body;
+
+    if (!prompt) {
+      return res.status(400).json({
+        success: false,
+        message: "Prompt is required",
+      });
+    }
+    // Call AI service to generate template content
   } catch (error) {
     console.error("Create template with AI error:", error);
     return res.status(500).json({

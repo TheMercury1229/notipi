@@ -1,5 +1,7 @@
 import User from "../models/user.model.js";
 import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import envVars from "../config/envVars.js";
 
 // Clerk auth callback
 export const authCallback = async (req, res) => {
@@ -58,7 +60,7 @@ export const login = async (req, res) => {
         .status(401)
         .json({ success: false, message: "Invalid credentials" });
     }
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+    const token = jwt.sign({ id: user._id }, envVars.JWT_SECRET, {
       expiresIn: "1d",
     });
     res.cookie("token", token, {
@@ -80,6 +82,7 @@ export const signup = async (req, res) => {
   try {
     const { name, email, password } = req.body;
     const existingUser = await User.findOne({ email });
+    console.log("USER SIGNUP");
     if (existingUser) {
       return res
         .status(400)
@@ -96,13 +99,11 @@ export const signup = async (req, res) => {
         { type: "push_notification", allowedLimit: 100, usedLimit: 0 },
       ],
     });
-    return res
-      .status(201)
-      .json({
-        success: true,
-        message: "User registered successfully",
-        data: newUser,
-      });
+    return res.status(201).json({
+      success: true,
+      message: "User registered successfully",
+      data: newUser,
+    });
   } catch (error) {
     console.error("Signup error:", error);
     return res.status(500).json({ success: false, message: "Signup failed" });
