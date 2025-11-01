@@ -18,6 +18,12 @@ interface Template {
   createdAt: string;
 }
 
+interface UsageItem {
+  type: "email" | "sms" | "push_notification";
+  allowedLimit: number;
+  usedLimit: number;
+}
+
 interface UserStats {
   emailsSent: number;
   templatesCreated: number;
@@ -64,8 +70,27 @@ export const useUserStore = create<UserStore>((set) => ({
     })),
   updatePlan: async (plan) => {
     try {
-      await authService.updateUserPlan(plan);
-      set({ currentPlan: plan });
+      const response = await authService.updateUserPlan(plan);
+      if (response.success && response.data) {
+        // Update plan and refresh user data with new limits
+        set({ currentPlan: plan });
+        
+        // Update usage limits if available
+        if (response.data.usage) {
+          const emailUsage = response.data.usage.find((u: UsageItem) => u.type === "email");
+          if (emailUsage) {
+            set((state) => ({
+              stats: {
+                ...state.stats,
+                usageLimit: emailUsage.allowedLimit,
+                usagePercentage: Math.round(
+                  (emailUsage.usedLimit / emailUsage.allowedLimit) * 100
+                ),
+              },
+            }));
+          }
+        }
+      }
     } catch (error) {
       console.error("Failed to update plan:", error);
       throw error;

@@ -154,10 +154,51 @@ export const updateUserPlan = async (req, res) => {
       });
     }
 
-    // Update user plan
+    // Define usage limits for each plan
+    const planLimits = {
+      free: {
+        email: 5000,
+        sms: 0,
+        push_notification: 100,
+      },
+      pro: {
+        email: 100000,
+        sms: 1000,
+        push_notification: 10000,
+      },
+      enterprise: {
+        email: -1, // unlimited
+        sms: -1, // unlimited
+        push_notification: -1, // unlimited
+      },
+    };
+
+    // Get the user first to preserve usedLimit values
+    const existingUser = await User.findById(userId);
+    if (!existingUser) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // Update usage limits based on the new plan
+    const updatedUsage = existingUser.usage.map((usageItem) => {
+      const newLimit = planLimits[plan][usageItem.type];
+      return {
+        type: usageItem.type,
+        allowedLimit: newLimit,
+        usedLimit: usageItem.usedLimit, // Preserve current usage
+      };
+    });
+
+    // Update user plan and usage limits
     const user = await User.findByIdAndUpdate(
       userId,
-      { userPlan: plan },
+      { 
+        userPlan: plan,
+        usage: updatedUsage
+      },
       { new: true, runValidators: true }
     )
       .populate("apiKeys")

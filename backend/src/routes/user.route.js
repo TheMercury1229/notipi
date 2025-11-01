@@ -12,6 +12,6 @@ const userRouter = Router();
 userRouter.post("/login", login);
 userRouter.post("/signup", signup);
 userRouter.get("/", checkAuth, getUserProfile);
-userRouter.patch("/plan", checkAuth, updateUserPlan);
+userRouter.patch("/plan", checkAuth, updateUserPlan); 
 
 export default userRouter;

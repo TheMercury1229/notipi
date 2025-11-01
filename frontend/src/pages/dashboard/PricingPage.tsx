@@ -69,7 +69,7 @@ const plans = [
 ];
 
 export default function PricingPage() {
-  const { currentPlan, updatePlan } = useUserStore();
+  const { currentPlan, updatePlan, loadUserData } = useUserStore();
   const [isLoading, setIsLoading] = useState(false);
 
   const handleUpgrade = async (planName: string) => {
@@ -77,7 +77,9 @@ export default function PricingPage() {
     setIsLoading(true);
     try {
       await updatePlan(plan);
-      toast.success("Plan updated successfully!");
+      // Reload user data to refresh usage limits across the app
+      await loadUserData();
+      toast.success("Plan updated successfully! Your new limits are now active.");
     } catch {
       toast.error("Failed to update plan. Please try again.");
     } finally {
