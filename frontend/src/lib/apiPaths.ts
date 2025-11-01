@@ -9,6 +9,7 @@ export const API_PATHS = {
     SIGNUP: "/api/users/signup",
     PROFILE: "/api/users",
     LOGOUT: "/api/users/logout",
+    UPDATE_PLAN: "/api/users/plan",
   },
 
   // Template endpoints

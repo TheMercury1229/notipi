@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { authService } from "@/lib/api.service";
 
 interface ApiKey {
   _id: string;
@@ -30,7 +31,8 @@ interface UserStore {
   stats: UserStats;
   currentPlan: "free" | "pro" | "enterprise";
   updateStats: (stats: Partial<UserStats>) => void;
-  updatePlan: (plan: "free" | "pro" | "enterprise") => void;
+  updatePlan: (plan: "free" | "pro" | "enterprise") => Promise<void>;
+  loadUserData: () => Promise<void>;
 
   // Templates
   templates: Template[];
@@ -60,7 +62,29 @@ export const useUserStore = create<UserStore>((set) => ({
     set((state) => ({
       stats: { ...state.stats, ...stats },
     })),
-  updatePlan: (plan) => set({ currentPlan: plan }),
+  updatePlan: async (plan) => {
+    try {
+      await authService.updateUserPlan(plan);
+      set({ currentPlan: plan });
+    } catch (error) {
+      console.error("Failed to update plan:", error);
+      throw error;
+    }
+  },
+  loadUserData: async () => {
+    try {
+      const response = await authService.getUserProfile();
+      if (response.success && response.data) {
+        set({
+          currentPlan: response.data.userPlan || "free",
+          templates: response.data.templates || [],
+          apiKeys: response.data.apiKeys || [],
+        });
+      }
+    } catch (error) {
+      console.error("Failed to load user data:", error);
+    }
+  },
 
   // Templates
   templates: [],

@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Check } from "lucide-react";
 import { useUserStore } from "@/store/userStore";
 import { toast } from "sonner";
+import { useEffect, useState } from "react";
 
 const plans = [
   {

@@ -25,6 +25,13 @@ export const authService = {
     return response.data;
   },
 
+  updateUserPlan: async (plan: "free" | "pro" | "enterprise") => {
+    const response = await axiosInstance.patch(API_PATHS.AUTH.UPDATE_PLAN, {
+      plan,
+    });
+    return response.data;
+  },
+
   logout: async () => {
     const response = await axiosInstance.post(API_PATHS.AUTH.LOGOUT);
     return response.data;
