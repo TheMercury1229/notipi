@@ -15,6 +15,11 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    userPlan: {
+      type: String,
+      enum: ["free", "pro", "enterprise"],
+      default: "free",
+    },
     apiKeys: [
       {
         type: mongoose.Schema.Types.ObjectId,
