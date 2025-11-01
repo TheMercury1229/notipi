@@ -8,6 +8,7 @@ import envVars from "./config/envVars.js";
 import userRouter from "./routes/user.route.js";
 import apiKeyRouter from "./routes/apiKey.route.js";
 import templateRouter from "./routes/template.route.js";
+import cookieParser from "cookie-parser";
 
 const app = express();
 
@@ -23,6 +24,7 @@ app.use(
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
   })
 );
+app.use(cookieParser());
 
 //Routes
 app.use("/api/users", userRouter);

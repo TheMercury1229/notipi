@@ -2,6 +2,7 @@ import { Router } from "express";
 import { checkAuth } from "../middlewares/auth.middleware.js";
 import {
   createTemplate,
+  createTemplateWithAI,
   deleteTemplate,
   fetchAllTemplates,
   fetchPublicTemplates,
@@ -20,4 +21,5 @@ templateRouter.get("/slug/:id", fetchTemplateBySlug);
 templateRouter.patch("/:id", updateTemplate);
 templateRouter.delete("/:id", deleteTemplate);
 templateRouter.get("/all", fetchPublicTemplates);
+templateRouter.post("/generate-ai", createTemplateWithAI);
 export default templateRouter;

@@ -3,13 +3,12 @@ import User from "../models/user.model.js";
 
 export const checkAuth = async (req, res, next) => {
   try {
-    const token = req.cookies.token || req.headers.authorization?.split(" ")[1];
+    const token = req.cookies.token;
+    console.log("Token from cookies:", token);
     if (!token) {
-      return res.status(401).json({
-        success: false,
-        message: "No token provided",
-      });
+      return res.status(401).json({ message: "Unauthorized / No token" });
     }
+    // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await User.findById(decoded.id);
     if (!user) {
