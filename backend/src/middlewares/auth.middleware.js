@@ -1,47 +1,30 @@
-import jwt from 'jsonwebtoken'
-import User from '../models/user.model.js'
+import jwt from "jsonwebtoken";
+import User from "../models/user.model.js";
 
 export const checkAuth = async (req, res, next) => {
   try {
-    const authHeader = req.headers.authorization
-
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    const token = req.cookies.token || req.headers.authorization?.split(" ")[1];
+    if (!token) {
       return res.status(401).json({
         success: false,
-        message: 'No authorization token provided'
-      })
+        message: "No token provided",
+      });
     }
-
-    const token = authHeader.split(' ')[1]
-
-    // Decode Clerk JWT
-    const decoded = jwt.decode(token)
-
-    if (!decoded || !decoded.sub) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid token'
-      })
-    }
-
-    // Find user by Clerk ID
-    const user = await User.findOne({ clerkId: decoded.sub })
-
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(decoded.id);
     if (!user) {
-      return res.status(404).json({
+      return res.status(401).json({
         success: false,
-        message: 'User not found'
-      })
+        message: "User not found",
+      });
     }
-
-    // Attach user to request
-    req.user = user
-    next()
+    req.user = user;
+    next();
   } catch (error) {
-    console.error('Auth error:', error)
+    console.error("Auth error:", error);
     return res.status(401).json({
       success: false,
-      message: 'Authentication failed'
-    })
+      message: "Authentication failed",
+    });
   }
-}
+};

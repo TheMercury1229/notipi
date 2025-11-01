@@ -16,7 +16,13 @@ await connectDB();
 // Middlewares
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(cors());
+app.use(
+  cors({
+    origin: envVars.CLIENT_URL,
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
+  })
+);
 
 //Routes
 app.use("/api/users", userRouter);
