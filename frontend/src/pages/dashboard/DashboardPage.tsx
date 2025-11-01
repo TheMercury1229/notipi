@@ -194,54 +194,6 @@ export default function DashboardPage() {
             </ChartContainer>
           </CardContent>
         </Card>
-
-        {/* Recent Activity */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {[
-                {
-                  action: "Template created",
-                  name: "Welcome Email",
-                  time: "2 hours ago",
-                },
-                {
-                  action: "API Key generated",
-                  name: "Production Key",
-                  time: "5 hours ago",
-                },
-                {
-                  action: "Batch sent",
-                  name: "342 emails delivered",
-                  time: "1 day ago",
-                },
-                {
-                  action: "Template updated",
-                  name: "Password Reset",
-                  time: "2 days ago",
-                },
-              ].map((activity, i) => (
-                <div
-                  key={i}
-                  className="flex items-center justify-between border-b pb-3 last:border-0"
-                >
-                  <div>
-                    <p className="text-sm font-medium">{activity.action}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {activity.name}
-                    </p>
-                  </div>
-                  <span className="text-xs text-muted-foreground">
-                    {activity.time}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
       </main>
     </div>
   );
