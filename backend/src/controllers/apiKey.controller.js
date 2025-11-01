@@ -9,7 +9,7 @@ export const createApiKey = async (req, res) => {
     const { name } = req.body
     const userId = req.user._id
 
-    console.log('📝 Creating API key with name:', name) // Debug log
+    console.log('🔍 Creating API key with name:', name) // Debug log
 
     if (!name) {
       return res.status(400).json({
@@ -22,7 +22,7 @@ export const createApiKey = async (req, res) => {
     const { rawKey, hashedKey } = await generateAPIKey()
     
     console.log('🔑 Generated raw key:', rawKey) // Debug log
-    console.log('🔐 Generated hashed key:', hashedKey) // Debug log
+    console.log('🔒 Generated hashed key:', hashedKey) // Debug log
 
     // Create API key in database
     const apiKey = await ApiKey.create({
@@ -164,6 +164,116 @@ export const updateApiKey = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'Failed to update API key'
+    })
+  }
+}
+
+// Revoke API key
+export const revokeApiKey = async (req, res) => {
+  try {
+    const { id } = req.params
+    const userId = req.user._id
+
+    const apiKey = await ApiKey.findById(id)
+
+    if (!apiKey) {
+      return res.status(404).json({
+        success: false,
+        message: 'API key not found'
+      })
+    }
+
+    // Check ownership
+    if (!isUserOwnerOfKey(userId.toString(), apiKey)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied'
+      })
+    }
+
+    // Check if already revoked
+    if (apiKey.isRevoked) {
+      return res.status(400).json({
+        success: false,
+        message: 'API key is already revoked'
+      })
+    }
+
+    // Revoke the API key
+    apiKey.isRevoked = true
+    await apiKey.save()
+
+    return res.status(200).json({
+      success: true,
+      message: 'API key revoked successfully',
+      data: {
+        _id: apiKey._id,
+        name: apiKey.name,
+        isRevoked: apiKey.isRevoked,
+        user: apiKey.user,
+        createdAt: apiKey.createdAt
+      }
+    })
+  } catch (error) {
+    console.error('Revoke API key error:', error)
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to revoke API key'
+    })
+  }
+}
+
+// Restore (Un-revoke) API key (NEW)
+export const restoreApiKey = async (req, res) => {
+  try {
+    const { id } = req.params
+    const userId = req.user._id
+
+    const apiKey = await ApiKey.findById(id)
+
+    if (!apiKey) {
+      return res.status(404).json({
+        success: false,
+        message: 'API key not found'
+      })
+    }
+
+    // Check ownership
+    if (!isUserOwnerOfKey(userId.toString(), apiKey)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied'
+      })
+    }
+
+    // Check if not revoked
+    if (!apiKey.isRevoked) {
+      return res.status(400).json({
+        success: false,
+        message: 'API key is not revoked'
+      })
+    }
+
+    // Restore the API key
+    apiKey.isRevoked = false
+    await apiKey.save()
+
+    return res.status(200).json({
+      success: true,
+      message: 'API key restored successfully',
+      data: {
+        _id: apiKey._id,
+        name: apiKey.name,
+        isRevoked: apiKey.isRevoked,
+        user: apiKey.user,
+        createdAt: apiKey.createdAt
+      }
+    })
+  } catch (error) {
+    console.error('Restore API key error:', error)
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to restore API key'
     })
   }
 }

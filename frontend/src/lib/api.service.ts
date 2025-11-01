@@ -143,6 +143,18 @@ export const apiKeyService = {
     return response.data;
   },
 
+  // Revoke API key
+  revokeApiKey: async (id: string) => {
+    const response = await axiosInstance.post(API_PATHS.API_KEYS.REVOKE(id));
+    return response.data;
+  },
+
+  // Restore (un-revoke) API key
+  restoreApiKey: async (id: string) => {
+    const response = await axiosInstance.post(API_PATHS.API_KEYS.RESTORE(id));
+    return response.data;
+  },
+
   // Delete API key
   deleteApiKey: async (id: string) => {
     const response = await axiosInstance.delete(
@@ -150,32 +162,34 @@ export const apiKeyService = {
     );
     return response.data;
   },
-
-  // Revoke API key
-  revokeApiKey: async (id: string) => {
-    const response = await axiosInstance.post(API_PATHS.API_KEYS.REVOKE(id));
-    return response.data;
-  },
 };
 
 // ============= Analytics Services =============
 export const analyticsService = {
-  // Get analytics stats
+  // Get comprehensive analytics stats
   getStats: async () => {
     const response = await axiosInstance.get(API_PATHS.ANALYTICS.STATS);
     return response.data;
   },
 
-  // Get activity logs
+  // Get activity logs with filtering
   getLogs: async (params?: {
     type?: string;
     status?: string;
     limit?: number;
     skip?: number;
+    startDate?: string;
+    endDate?: string;
   }) => {
     const response = await axiosInstance.get(API_PATHS.ANALYTICS.LOGS, {
       params,
     });
+    return response.data;
+  },
+
+  // Get real-time stats for dashboard
+  getRealTimeStats: async () => {
+    const response = await axiosInstance.get(API_PATHS.ANALYTICS.REALTIME);
     return response.data;
   },
 };

@@ -27,6 +27,7 @@ export const API_PATHS = {
     GET_ALL: "/api/apikeys",
     CREATE: "/api/apikeys",
     REVOKE: (id: string) => `/api/apikeys/${id}/revoke`,
+    RESTORE: (id: string) => `/api/apikeys/${id}/restore`,
     DELETE: (id: string) => `/api/apikeys/${id}`,
   },
 
@@ -34,5 +35,6 @@ export const API_PATHS = {
   ANALYTICS: {
     STATS: "/api/analytics/stats",
     LOGS: "/api/analytics/logs",
+    REALTIME: "/api/analytics/realtime",
   },
 };

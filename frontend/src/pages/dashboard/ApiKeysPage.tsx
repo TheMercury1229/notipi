@@ -17,10 +17,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Copy, Plus, Trash2, Eye, EyeOff, Loader2 } from "lucide-react";
+import { Copy, Plus, Trash2, Eye, EyeOff, Loader2, ShieldOff, ShieldCheck, RotateCcw } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { apiKeyService } from "@/lib/api.service";
@@ -43,6 +53,16 @@ export default function ApiKeysPage() {
   const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [fetchLoading, setFetchLoading] = useState(true);
+  
+  // Revoke confirmation dialog state
+  const [revokeDialogOpen, setRevokeDialogOpen] = useState(false);
+  const [keyToRevoke, setKeyToRevoke] = useState<ApiKey | null>(null);
+  const [revokeLoading, setRevokeLoading] = useState(false);
+
+  // Restore confirmation dialog state
+  const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
+  const [keyToRestore, setKeyToRestore] = useState<ApiKey | null>(null);
+  const [restoreLoading, setRestoreLoading] = useState(false);
 
   // Fetch API keys on component mount
   useEffect(() => {
@@ -96,8 +116,58 @@ export default function ApiKeysPage() {
     toast.success("API Key copied to clipboard!");
   };
 
+  const handleRevokeClick = (apiKey: ApiKey) => {
+    setKeyToRevoke(apiKey);
+    setRevokeDialogOpen(true);
+  };
+
+  const handleRevokeConfirm = async () => {
+    if (!keyToRevoke) return;
+
+    try {
+      setRevokeLoading(true);
+      const response = await apiKeyService.revokeApiKey(keyToRevoke._id);
+      
+      if (response.success) {
+        toast.success("API Key revoked successfully!");
+        await fetchApiKeys();
+        setRevokeDialogOpen(false);
+        setKeyToRevoke(null);
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to revoke API key");
+    } finally {
+      setRevokeLoading(false);
+    }
+  };
+
+  const handleRestoreClick = (apiKey: ApiKey) => {
+    setKeyToRestore(apiKey);
+    setRestoreDialogOpen(true);
+  };
+
+  const handleRestoreConfirm = async () => {
+    if (!keyToRestore) return;
+
+    try {
+      setRestoreLoading(true);
+      const response = await apiKeyService.restoreApiKey(keyToRestore._id);
+      
+      if (response.success) {
+        toast.success("API Key restored successfully!");
+        await fetchApiKeys();
+        setRestoreDialogOpen(false);
+        setKeyToRestore(null);
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to restore API key");
+    } finally {
+      setRestoreLoading(false);
+    }
+  };
+
   const handleDeleteKey = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this API key?")) return;
+    if (!confirm("Are you sure you want to delete this API key? This action cannot be undone.")) return;
 
     try {
       const response = await apiKeyService.deleteApiKey(id);
@@ -143,7 +213,13 @@ export default function ApiKeysPage() {
       <Navbar title="API Keys" />
 
       <main className="p-6">
-        <div className="mb-6">
+        <div className="mb-6 flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold">Manage Your API Keys</h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Create and manage API keys for your applications
+            </p>
+          </div>
           <Button onClick={() => setIsCreateOpen(true)} className="gap-2">
             <Plus className="w-4 h-4" />
             Generate API Key
@@ -176,7 +252,7 @@ export default function ApiKeysPage() {
                 </TableHeader>
                 <TableBody>
                   {apiKeys.map((apiKey) => (
-                    <TableRow key={apiKey._id}>
+                    <TableRow key={apiKey._id} className={apiKey.isRevoked ? "opacity-60" : ""}>
                       <TableCell className="font-medium">
                         {apiKey.name}
                       </TableCell>
@@ -193,6 +269,7 @@ export default function ApiKeysPage() {
                               size="icon"
                               className="h-6 w-6"
                               onClick={() => toggleKeyVisibility(apiKey._id)}
+                              disabled={apiKey.isRevoked}
                             >
                               {visibleKeys.has(apiKey._id) ? (
                                 <EyeOff className="w-3 h-3" />
@@ -205,11 +282,20 @@ export default function ApiKeysPage() {
                       </TableCell>
                       <TableCell>
                         <Badge
-                          variant={
-                            apiKey.isRevoked ? "secondary" : "default"
-                          }
+                          variant={apiKey.isRevoked ? "destructive" : "default"}
+                          className="gap-1"
                         >
-                          {apiKey.isRevoked ? "revoked" : "active"}
+                          {apiKey.isRevoked ? (
+                            <>
+                              <ShieldOff className="w-3 h-3" />
+                              Revoked
+                            </>
+                          ) : (
+                            <>
+                              <ShieldCheck className="w-3 h-3" />
+                              Active
+                            </>
+                          )}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-muted-foreground">
@@ -217,21 +303,40 @@ export default function ApiKeysPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
-                          {apiKey.key && (
+                          {apiKey.key && !apiKey.isRevoked && (
                             <Button
                               variant="ghost"
                               size="icon"
                               onClick={() => handleCopyKey(apiKey.key!)}
-                              disabled={apiKey.isRevoked}
+                              title="Copy API Key"
                             >
                               <Copy className="w-4 h-4" />
+                            </Button>
+                          )}
+                          {!apiKey.isRevoked ? (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleRevokeClick(apiKey)}
+                              title="Revoke API Key"
+                            >
+                              <ShieldOff className="w-4 h-4 text-orange-500" />
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleRestoreClick(apiKey)}
+                              title="Restore API Key"
+                            >
+                              <RotateCcw className="w-4 h-4 text-green-500" />
                             </Button>
                           )}
                           <Button
                             variant="ghost"
                             size="icon"
                             onClick={() => handleDeleteKey(apiKey._id)}
-                            disabled={apiKey.isRevoked}
+                            title="Delete API Key"
                           >
                             <Trash2 className="w-4 h-4 text-destructive" />
                           </Button>
@@ -328,6 +433,85 @@ export default function ApiKeysPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Revoke Confirmation Dialog */}
+      <AlertDialog open={revokeDialogOpen} onOpenChange={setRevokeDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Revoke API Key</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>Are you sure you want to revoke this API key?</p>
+              <p className="font-medium text-foreground">
+                Key: {keyToRevoke?.name}
+              </p>
+              <p className="text-sm">
+                This will immediately invalidate the key. Any applications using
+                this key will stop working. You can restore it later if needed.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={revokeLoading}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleRevokeConfirm}
+              disabled={revokeLoading}
+              className="bg-orange-500 hover:bg-orange-600"
+            >
+              {revokeLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Revoking...
+                </>
+              ) : (
+                "Revoke Key"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Restore Confirmation Dialog */}
+      <AlertDialog open={restoreDialogOpen} onOpenChange={setRestoreDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Restore API Key</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>Are you sure you want to restore this API key?</p>
+              <p className="font-medium text-foreground">
+                Key: {keyToRestore?.name}
+              </p>
+              <p className="text-sm">
+                This will reactivate the key and make it usable again. Applications
+                using this key will be able to make API calls.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={restoreLoading}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleRestoreConfirm}
+              disabled={restoreLoading}
+              className="bg-green-500 hover:bg-green-600"
+            >
+              {restoreLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Restoring...
+                </>
+              ) : (
+                <>
+                  <RotateCcw className="w-4 h-4 mr-2" />
+                  Restore Key
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
