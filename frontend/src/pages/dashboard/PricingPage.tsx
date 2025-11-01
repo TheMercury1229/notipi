@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Check } from "lucide-react";
 import { useUserStore } from "@/store/userStore";
 import { toast } from "sonner";
+import { useState } from "react";
 
 const plans = [
   {
@@ -69,11 +70,19 @@ const plans = [
 
 export default function PricingPage() {
   const { currentPlan, updatePlan } = useUserStore();
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleUpgrade = (planName: string) => {
+  const handleUpgrade = async (planName: string) => {
     const plan = planName.toLowerCase() as "free" | "pro" | "enterprise";
-    updatePlan(plan);
-    toast.success("Plan updated successfully!");
+    setIsLoading(true);
+    try {
+      await updatePlan(plan);
+      toast.success("Plan updated successfully!");
+    } catch {
+      toast.error("Failed to update plan. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -155,10 +164,12 @@ export default function PricingPage() {
                     <Button
                       className="w-full"
                       variant={plan.highlighted ? "default" : "outline"}
-                      disabled={isCurrentPlan}
+                      disabled={isCurrentPlan || isLoading}
                       onClick={() => handleUpgrade(plan.name)}
                     >
-                      {isCurrentPlan
+                      {isLoading
+                        ? "Updating..."
+                        : isCurrentPlan
                         ? "Current Plan"
                         : plan.name === "Enterprise"
                         ? "Contact Sales"

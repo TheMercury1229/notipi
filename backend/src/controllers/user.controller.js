@@ -138,3 +138,48 @@ export const getUserProfile = async (req, res) => {
     });
   }
 };
+
+// Update user plan
+export const updateUserPlan = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { plan } = req.body;
+
+    // Validate plan
+    const validPlans = ["free", "pro", "enterprise"];
+    if (!plan || !validPlans.includes(plan)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid plan. Must be one of: free, pro, enterprise",
+      });
+    }
+
+    // Update user plan
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { userPlan: plan },
+      { new: true, runValidators: true }
+    )
+      .populate("apiKeys")
+      .populate("templates");
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Plan updated successfully",
+      data: user,
+    });
+  } catch (error) {
+    console.error("Update user plan error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update user plan",
+    });
+  }
+};
